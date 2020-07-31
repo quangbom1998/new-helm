@@ -1,3 +1,3 @@
 # new-helm
-Deploy using Development environment:
-  helm install my-nginx . -f Development/values.yaml 
+#Deploy using Development environment:
+#  helm install my-nginx . -f Development/values.yaml 

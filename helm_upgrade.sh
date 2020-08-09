@@ -1,6 +1,12 @@
 #!/bin/bash
 
 release_name=$1
-chart_name=$2
+context_name=$2
 
-helm upgrade $release_name . -f $chart_name/values.yaml
+file="$(basename ./new-helm-0.1.0.tgz)" 
+
+if [ ! -e $file ]; then #Neu khong ton tai 
+    helm package . #Dong goi chart
+fi
+
+helm upgrade $release_name ./new-helm-0.1.0.tgz -f $context_name/values.yaml

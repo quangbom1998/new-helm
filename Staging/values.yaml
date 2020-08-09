@@ -1,35 +1,202 @@
-# Default values for Staging.
-
-replicaCount: 2
-
-image:
-  repository: nginx
-  pullPolicy: IfNotPresent
-  # Overrides the image tag whose default is the chart appVersion.
-  tag: ""
+# Default values for Development.
 
 nameOverride: ""
 fullnameOverride: ""
 
-service:
-  type: NodePort
-  port: 80
+#########
+# Nginx #
+#########
 
-resources: 
-  # We usually recommend not to specify default resources and to leave this as a conscious
-  # choice for the user. This also increases chances charts run on environments with little
-  # resources, such as Minikube. If you do want to specify resources, uncomment the following
-  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
-  limits:
-    cpu: 100m
-    memory: 128Mi
-  requests:
-    cpu: 100m
-    memory: 128Mi
+my_nginx:
+  #Nginx Deployment
+  labels:
+    app: nginx
 
-autoscaling:
-  enabled: true
-  minReplicas: 3
-  maxReplicas: 10
-  targetCPUUtilizationPercentage: 60
-  targetMemoryUtilizationPercentage: 60
+  replicaCount: 2
+
+  image:
+    repository: nginx
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "stable-alpine"
+
+  ports:
+    name: http
+    containerPort: 80
+    protocol: TCP
+
+  livenessProbe:
+    httpGet:
+      path: /code
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 3  
+    failureThreshold: 5
+
+  readinessProbe:
+    httpGet:
+      path: /code
+      port: http
+    initialDelaySeconds: 5
+    periodSeconds: 3  
+    failureThreshold: 5
+
+  resources: 
+    limits:
+      cpu: 100m
+      memory: 128Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+  #Nginx Service
+  service:
+    name: nginx
+    type: NodePort
+    port: 80
+    protocol: TCP
+
+  #Nginx HPA
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 6
+    metrics:
+      type: Resource
+    cpu:
+      name: cpu
+      targetCPUUtilizationPercentage: 60
+    memory:
+      name: memory
+      targetMemoryUtilizationPercentage: 60
+
+#######
+# PHP #
+#######
+
+my_php:
+  #PHP Deployment
+  labels: 
+    app: php
+
+  replicaCount: 2
+
+  image:
+    repository: php
+    pullPolicy: IfNotPresent
+    tag: "7.3-fpm"
+
+  ports:
+    name: php
+    containerPort: 9000
+    protocol: TCP
+
+  livenessProbe:
+    tcpSocket:
+      port: php
+    initialDelaySeconds: 5
+    periodSeconds: 3  
+    failureThreshold: 5
+
+  readinessProbe:
+    tcpSocket:
+      port: php
+    initialDelaySeconds: 5
+    periodSeconds: 3  
+    failureThreshold: 5
+
+  resources: 
+    limits:
+      cpu: 50m
+      memory: 64Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+
+  #PHP Service
+  service:
+    name: php
+    type: ClusterIP
+    port: 9000
+
+  #PHP HPA
+  autoscaling:
+    enabled: true
+    minReplicas: 1
+    maxReplicas: 3
+    metrics:
+      type: Resource
+    cpu:
+      name: cpu
+      targetCPUUtilizationPercentage: 40
+    memory:
+      name: memory
+      targetMemoryUtilizationPercentage: 40
+
+#-----------------------#
+#   Persistent Volume   #
+#-----------------------#
+my_pv:
+  capacity:
+    storage: 5Gi
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: myapp-storage
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: /home/quang/Documents/Internship/Helm/new-helm/Staging/code
+
+#-----------------------------#
+#   Persistent Volume Claim   #
+#-----------------------------#
+
+my_pvc:
+  accessModes:
+  - ReadWriteOnce
+  storageClassName: myapp-storage
+  resources:
+    requests:
+      storage: 250Mi
+
+#-----------------------------#
+#            Volume           #
+#-----------------------------#
+
+volumes:
+  pv:
+    name: staging-vol
+    mountPath: /code
+  config:
+    name: config
+    key: config
+    path: site.conf
+    mountPath: /etc/nginx/conf.d
+
+#-----------------------------#
+#         Config Map          #
+#-----------------------------#
+
+data:
+  config: |
+    server {
+      index index.php index.html;
+      error_log  /var/log/nginx/error.log;
+      access_log /var/log/nginx/access.log;
+        
+      root /code;
+        
+      location / {
+          try_files $uri $uri/ /index.php?$query_string;
+      }
+        
+      location ~ .php$ {
+          try_files $uri =404;
+          fastcgi_split_path_info ^(.+.php)(/.+)$;
+          fastcgi_pass php:9000;
+          fastcgi_index index.php;
+          include fastcgi_params;
+          fastcgi_param SCRIPT_FILENAME $document_root$fastcgi_script_name;
+          fastcgi_param PATH_INFO $fastcgi_path_info;
+      }
+    }
+

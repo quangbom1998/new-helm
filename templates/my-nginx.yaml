@@ -1,82 +1,223 @@
+                        #-------#
+                        # Nginx #
+                        #-------#
+
+#--------------------------------------------------------#
+#                       Deployment                       #
+#--------------------------------------------------------#
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "new-helm.fullname" . }}
+  name: {{ include "new-helm.fullname" . }}-nginx-deployment
   labels:
     {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.my_nginx.labels.app }}
 spec:
-{{- if not .Values.autoscaling.enabled }}
-  replicas: {{ .Values.replicaCount }}
+{{- if not .Values.my_nginx.autoscaling.enabled }}
+  replicas: {{ .Values.my_nginx.replicaCount }}
 {{- end }}
   selector:
     matchLabels:
       {{- include "new-helm.selectorLabels" . | nindent 6 }}
+      app: {{ .Values.my_nginx.labels.app }}
   template:
     metadata:
       labels:
         {{- include "new-helm.selectorLabels" . | nindent 8 }}
+        app: {{ .Values.my_nginx.labels.app }}
     spec:
+      volumes:
+      - name: {{ .Values.volumes.pv.name }}
+        persistentVolumeClaim:
+          claimName: {{ include "new-helm.fullname" . }}-pvc
+      - name: {{ .Values.volumes.config.name }}
+        configMap:
+          name: {{ include "new-helm.fullname" . }}-nginx-config
+          items:
+          - key: {{ .Values.volumes.config.key }}
+            path: {{ .Values.volumes.config.path }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.my_nginx.image.repository }}:{{ .Values.my_nginx.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.my_nginx.image.pullPolicy }}
           ports:
-            - name: http
-              containerPort: 80
-              protocol: TCP
+            - name: {{ .Values.my_nginx.ports.name }}
+              containerPort: {{ .Values.my_nginx.ports.containerPort }}
+              protocol: {{ .Values.my_nginx.ports.protocol }}
           livenessProbe:
-            httpGet:
-              path: /
-              port: http
+            {{- toYaml .Values.my_nginx.livenessProbe | nindent 12 }}
           readinessProbe:
-            httpGet:
-              path: /
-              port: http
+            {{- toYaml .Values.my_nginx.readinessProbe | nindent 12}}
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml .Values.my_nginx.resources | nindent 12 }}
+          volumeMounts:
+            - name: {{ .Values.volumes.pv.name }}
+              mountPath: {{ .Values.volumes.pv.mountPath }}
+            - name: {{ .Values.volumes.config.name }}
+              mountPath: {{ .Values.volumes.config.mountPath }}
 
 ---
+#--------------------------------------------------------#
+#                          Service                       #
+#--------------------------------------------------------#
+
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ include "new-helm.fullname" . }}
+  name: {{ .Values.my_nginx.service.name }}
   labels:
     {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.my_nginx.labels.app }}
 spec:
-  type: {{ .Values.service.type }}
+  type: {{ .Values.my_nginx.service.type }}
   ports:
-    - port: {{ .Values.service.port }}
-      targetPort: http
-      protocol: TCP
-      name: http
+    - port: {{ .Values.my_nginx.service.port }}
+      targetPort: {{ .Values.my_nginx.ports.containerPort }}
+      protocol: {{ .Values.my_nginx.service.protocol }}
   selector:
     {{- include "new-helm.selectorLabels" . | nindent 4 }}
+    app: {{ .Values.my_nginx.labels.app }}
+
 ---
-{{- if .Values.autoscaling.enabled }}
+#--------------------------------------------------------#
+#                           HPA                          #
+#--------------------------------------------------------#
+
+{{- if .Values.my_nginx.autoscaling.enabled }}
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "new-helm.fullname" . }}
+  name: {{ include "new-helm.fullname" . }}-nginx-hpa
   labels:
     {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.my_nginx.labels.app }}
 spec:
   scaleTargetRef:
     apiVersion: apps/v1
     kind: Deployment
-    name: {{ include "new-helm.fullname" . }}
-  minReplicas: {{ .Values.autoscaling.minReplicas }}
-  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+    name: {{ include "new-helm.fullname" . }}-nginx-deployment
+  minReplicas: {{ .Values.my_nginx.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.my_nginx.autoscaling.maxReplicas }}
   metrics:
-  {{- if .Values.autoscaling.targetCPUUtilizationPercentage }}
-    - type: Resource
+  {{- if .Values.my_nginx.autoscaling.cpu.targetCPUUtilizationPercentage }}
+    - type: {{ .Values.my_nginx.autoscaling.metrics.type }}
       resource:
-        name: cpu
-        targetAverageUtilization: {{ .Values.autoscaling.targetCPUUtilizationPercentage }}
+        name: {{ .Values.my_nginx.autoscaling.cpu.name }}
+        targetAverageUtilization: {{ .Values.my_nginx.autoscaling.cpu.targetCPUUtilizationPercentage }}
   {{- end }}
-  {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
-    - type: Resource
+  {{- if .Values.my_nginx.autoscaling.memory.targetMemoryUtilizationPercentage }}
+    - type: {{ .Values.my_nginx.autoscaling.metrics.type }}
       resource:
-        name: memory
-        targetAverageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+        name: {{ .Values.my_nginx.autoscaling.memory.name }}
+        targetAverageUtilization: {{ .Values.my_nginx.autoscaling.memory.targetMemoryUtilizationPercentage }}
+  {{- end }}
+{{- end }}
+
+---
+                          #-----#
+                          # PHP #
+                          #-----#
+
+#--------------------------------------------------------#
+#                       Deployment                       #
+#--------------------------------------------------------#
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.my_php.labels.app }}
+  name: {{ include "new-helm.fullname" . }}-php-deployment
+spec:
+{{- if not .Values.my_php.autoscaling.enabled }}
+  replicas: {{ .Values.my_php.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "new-helm.selectorLabels" . | nindent 6 }}
+      app: {{ .Values.my_php.labels.app }}
+  template:
+    metadata:
+      labels:
+        {{- include "new-helm.selectorLabels" . | nindent 8 }}
+        app: {{ .Values.my_php.labels.app }}
+    spec:
+      volumes:
+      - name: {{ .Values.volumes.pv.name }}
+        persistentVolumeClaim:
+          claimName: {{ include "new-helm.fullname" . }}-pvc
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.my_php.image.repository }}:{{ .Values.my_php.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.my_php.image.pullPolicy }}
+          ports:
+            - name: {{ .Values.my_php.ports.name }}
+              containerPort: {{ .Values.my_php.ports.containerPort }}
+              protocol: {{ .Values.my_php.ports.protocol }}
+          livenessProbe:
+            {{- toYaml .Values.my_php.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.my_php.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.my_php.resources | nindent 12 }}
+          volumeMounts:
+          - name: {{ .Values.volumes.pv.name }}
+            mountPath: {{ .Values.volumes.pv.mountPath }}
+
+---
+#--------------------------------------------------------#
+#                        Service                         #
+#--------------------------------------------------------#
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.my_php.service.name }}
+  labels:
+    {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.my_php.labels.app }}
+spec:
+  type: {{ .Values.my_php.service.type }}
+  ports:
+    - port: {{ .Values.my_php.service.port }}
+      targetPort: {{ .Values.my_php.ports.containerPort }}
+  selector:
+    {{- include "new-helm.selectorLabels" . | nindent 4 }}
+    app: {{ .Values.my_php.labels.app }}
+
+---
+#--------------------------------------------------------#
+#                           HPA                          #
+#--------------------------------------------------------#
+
+{{- if .Values.my_php.autoscaling.enabled }}
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "new-helm.fullname" . }}-php-hpa
+  labels:
+    {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.my_php.labels.app }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "new-helm.fullname" . }}-php-deployment
+  minReplicas: {{ .Values.my_php.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.my_php.autoscaling.maxReplicas }}
+  metrics:
+  {{- if .Values.my_nginx.autoscaling.cpu.targetCPUUtilizationPercentage }}
+    - type: {{ .Values.my_php.autoscaling.metrics.type }}
+      resource:
+        name: {{ .Values.my_php.autoscaling.cpu.name }}
+        targetAverageUtilization: {{ .Values.my_php.autoscaling.cpu.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if .Values.my_php.autoscaling.memory.targetMemoryUtilizationPercentage }}
+    - type: {{ .Values.my_php.autoscaling.metrics.type }}
+      resource:
+        name: {{ .Values.my_php.autoscaling.memory.name }}
+        targetAverageUtilization: {{ .Values.my_php.autoscaling.memory.targetMemoryUtilizationPercentage }}
   {{- end }}
 {{- end }}

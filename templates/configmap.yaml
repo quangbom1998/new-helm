@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "new-helm.fullname" . }}-nginx-config
+  labels:
+    app: {{ .Values.my_nginx.labels.app }}
+data:
+  {{- toYaml .Values.data | nindent 2 }}

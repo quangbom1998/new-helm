@@ -1,7 +1,6 @@
 #!/bin/bash
 
 release_name=$1
+context_name=$2
 
-chart_name=$2
-
-helm install $release_name . -f $chart_name/values.yaml
+helm install $release_name . -f $context_name/values.yaml

@@ -1,4 +1,4 @@
-# Default values for Development.
+# Default values for Staging.
 
 nameOverride: ""
 fullnameOverride: ""

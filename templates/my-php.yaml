@@ -1,0 +1,102 @@
+#--------------------------------------------------------#
+#                       Deployment                       #
+#--------------------------------------------------------#
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.phpApp.labels.app }}
+  name: {{ include "new-helm.fullname" . }}-php-deployment
+spec:
+{{- if not .Values.phpApp.autoscaling.enabled }}
+  replicas: {{ .Values.phpApp.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      {{- include "new-helm.selectorLabels" . | nindent 6 }}
+      app: {{ .Values.phpApp.labels.app }}
+  template:
+    metadata:
+      labels:
+        {{- include "new-helm.selectorLabels" . | nindent 8 }}
+        app: {{ .Values.phpApp.labels.app }}
+    spec:
+      volumes:
+      - name: {{ .Values.volumes.pv.name }}
+        persistentVolumeClaim:
+          claimName: {{ include "new-helm.fullname" . }}-pvc
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.phpApp.image.repository }}:{{ .Values.phpApp.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.phpApp.image.pullPolicy }}
+          ports:
+            - name: {{ .Values.phpApp.ports.name }}
+              containerPort: {{ .Values.phpApp.ports.containerPort }}
+              protocol: {{ .Values.phpApp.ports.protocol }}
+          livenessProbe:
+            {{- toYaml .Values.phpApp.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.phpApp.readinessProbe | nindent 12 }}
+          resources:
+            {{- toYaml .Values.phpApp.resources | nindent 12 }}
+          volumeMounts:
+          - name: {{ .Values.volumes.pv.name }}
+            mountPath: {{ .Values.volumes.pv.mountPath }}
+
+---
+#--------------------------------------------------------#
+#                        Service                         #
+#--------------------------------------------------------#
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.phpApp.service.name }}
+  labels:
+    {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.phpApp.labels.app }}
+spec:
+  type: {{ .Values.phpApp.service.type }}
+  ports:
+    - port: {{ .Values.phpApp.service.port }}
+      targetPort: {{ .Values.phpApp.ports.containerPort }}
+  selector:
+    {{- include "new-helm.selectorLabels" . | nindent 4 }}
+    app: {{ .Values.phpApp.labels.app }}
+
+---
+#--------------------------------------------------------#
+#                           HPA                          #
+#--------------------------------------------------------#
+
+{{- if .Values.phpApp.autoscaling.enabled }}
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "new-helm.fullname" . }}-php-hpa
+  labels:
+    {{- include "new-helm.labels" . | nindent 4 }}
+    app: {{ .Values.phpApp.labels.app }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "new-helm.fullname" . }}-php-deployment
+  minReplicas: {{ .Values.phpApp.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.phpApp.autoscaling.maxReplicas }}
+  metrics:
+  {{- if .Values.phpApp.autoscaling.cpu.targetCPUUtilizationPercentage }}
+    - type: {{ .Values.phpApp.autoscaling.metrics.type }}
+      resource:
+        name: {{ .Values.phpApp.autoscaling.cpu.name }}
+        targetAverageUtilization: {{ .Values.phpApp.autoscaling.cpu.targetCPUUtilizationPercentage }}
+  {{- end }}
+  {{- if .Values.phpApp.autoscaling.memory.targetMemoryUtilizationPercentage }}
+    - type: {{ .Values.phpApp.autoscaling.metrics.type }}
+      resource:
+        name: {{ .Values.phpApp.autoscaling.memory.name }}
+        targetAverageUtilization: {{ .Values.phpApp.autoscaling.memory.targetMemoryUtilizationPercentage }}
+  {{- end }}
+{{- end }}

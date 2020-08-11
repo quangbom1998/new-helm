@@ -7,7 +7,7 @@ kind: PersistentVolume
 metadata:
   name: {{ include "new-helm.fullname" . }}-pv
 spec:
-  {{- toYaml .Values.my_pv | nindent 2 }}
+  {{- toYaml .Values.pv | nindent 2 }}
 
 ---
 #-----------------------------#
@@ -19,5 +19,5 @@ kind: PersistentVolumeClaim
 metadata:
   name: {{ include "new-helm.fullname" . }}-pvc
 spec:
-  {{- toYaml .Values.my_pvc | nindent 2}}
+  {{- toYaml .Values.pvc | nindent 2}}
   volumeName: {{ include "new-helm.fullname" . }}-pv

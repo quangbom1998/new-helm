@@ -3,6 +3,6 @@ kind: ConfigMap
 metadata:
   name: {{ include "new-helm.fullname" . }}-nginx-config
   labels:
-    app: {{ .Values.my_nginx.labels.app }}
+    app: {{ .Values.nginxApp.labels.app }}
 data:
   {{- toYaml .Values.data | nindent 2 }}

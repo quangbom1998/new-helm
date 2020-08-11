@@ -7,7 +7,7 @@ fullnameOverride: ""
 # Nginx #
 #########
 
-my_nginx:
+nginxApp:
   #Nginx Deployment
   labels:
     app: nginx
@@ -18,7 +18,7 @@ my_nginx:
     repository: nginx
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "stable-alpine"
+    tag: "1.17.0"
 
   ports:
     name: http
@@ -43,11 +43,11 @@ my_nginx:
 
   resources: 
     limits:
-      cpu: 100m
+      cpu: 250m
       memory: 128Mi
     requests:
-      cpu: 100m
-      memory: 128Mi
+      cpu: 150m
+      memory: 64Mi
 
   #Nginx Service
   service:
@@ -74,7 +74,7 @@ my_nginx:
 # PHP #
 #######
 
-my_php:
+phpApp:
   #PHP Deployment
   labels: 
     app: php
@@ -107,8 +107,8 @@ my_php:
 
   resources: 
     limits:
-      cpu: 50m
-      memory: 64Mi
+      cpu: 100m
+      memory: 128Mi
     requests:
       cpu: 50m
       memory: 64Mi
@@ -136,7 +136,7 @@ my_php:
 #-----------------------#
 #   Persistent Volume   #
 #-----------------------#
-my_pv:
+pv:
   capacity:
     storage: 5Gi
   accessModes:
@@ -150,7 +150,7 @@ my_pv:
 #   Persistent Volume Claim   #
 #-----------------------------#
 
-my_pvc:
+pvc:
   accessModes:
   - ReadWriteOnce
   storageClassName: myapp-storage

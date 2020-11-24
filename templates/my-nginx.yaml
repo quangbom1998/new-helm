@@ -56,7 +56,7 @@ spec:
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:
-  name: {{ include "new-helm.fullname" . }}
+  name: {{ include "new-helm.fullname" . }}-cpu-hpa
   labels:
     {{- include "new-helm.labels" . | nindent 4 }}
 spec:
@@ -79,4 +79,27 @@ spec:
   #      name: memory
   #      targetAverageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
   #{{- end }}
+{{- end }}
+---
+{{- if .Values.autoscaling.enabled }}
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "new-helm.fullname" . }}-memory-hpa
+  labels:
+    {{- include "new-helm.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "new-helm.fullname" . }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+  {{- if .Values.autoscaling.targetMemoryUtilizationPercentage }}
+    - type: Resource
+      resource:
+        name: memory
+        targetAverageUtilization: {{ .Values.autoscaling.targetMemoryUtilizationPercentage }}
+  {{- end }}
 {{- end }}
